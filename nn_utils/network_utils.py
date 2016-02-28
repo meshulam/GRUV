@@ -3,6 +3,7 @@ from keras.layers.core import TimeDistributedDense
 from keras.layers.recurrent import LSTM, GRU
 
 def create_lstm_network(num_frequency_dimensions, num_hidden_dimensions, num_recurrent_units=1):
+    print("Creating LSTM network, input dims: {}, output Dims: {}".format(num_frequency_dimensions, num_hidden_dimensions))
     model = Sequential()
     #This layer converts frequency space to hidden space
     model.add(TimeDistributedDense(input_dim=num_frequency_dimensions, output_dim=num_hidden_dimensions))

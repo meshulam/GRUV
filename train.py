@@ -22,6 +22,7 @@ block_size = freq / 4
 # Used later for zero-padding song sequences
 max_seq_len = int(round((freq * clip_len) / block_size))
 
+# TODO: only do this if we don't find the .npy files
 # Convert WAVs to frequency domain with mean 0 and standard deviation of 1
 convert_wav_files_to_nptensor(wav_dir, block_size, max_seq_len, model_file)
 
@@ -34,7 +35,7 @@ print ('Loading training data from tensors')
 # x_train and y_train are tensors of size (num_train_examples, num_timesteps, num_frequency_dims)
 x_train = np.load(model_file + '_x.npy')
 y_train = np.load(model_file + '_y.npy')
-print ('Finished loading training data')
+print ('Finished loading training data. Dimensions: ' + repr(x_train.shape))
 
 #Figure out how many frequencies we have in the data
 freq_space_dims = x_train.shape[2]
@@ -51,7 +52,7 @@ if os.path.isfile(model_filename):
 
 num_iters = 50          # Number of iterations for training
 epochs_per_iter = 25    # Number of iterations before we save our model
-batch_size = 5          # Number of training examples pushed to the GPU per batch.
+batch_size = 64         # Number of training examples pushed to the GPU per batch.
                         # Larger batch sizes require more memory, but training will be faster
 print ('Starting training!')
 while cur_iter < num_iters:

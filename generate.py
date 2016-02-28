@@ -39,9 +39,9 @@ model = network_utils.create_lstm_network(num_frequency_dimensions=freq_space_di
 
 #Load existing weights if available
 if os.path.isfile(model_filename):
-	model.load_weights(model_filename)
+    model.load_weights(model_filename)
 else:
-	print('Model filename ' + model_filename + ' could not be found!')
+    print('Model filename ' + model_filename + ' could not be found!')
 
 print ('Starting generation!')
 #Here's the interesting part
@@ -52,11 +52,13 @@ print ('Starting generation!')
 #There are many, many ways we can pick these seed sequences such as taking linear combinations of certain songs
 #We could even provide a uniformly random sequence, but that is highly unlikely to produce good results
 seed_len = 1
-seed_seq = seed_generator.generate_copy_seed_sequence(seed_length=seed_len, training_data=X_train)
+seed = seed_generator.generate_copy_seed_sequence(seed_length=seed_len, training_data=X_train)
 
-max_seq_len = 10; #Defines how long the final song is. Total song length in samples = max_seq_len * example_len
-output = sequence_generator.generate_from_seed(model=model, seed=seed_seq, 
-	sequence_length=max_seq_len, data_variance=X_var, data_mean=X_mean)
+max_seq_len = 10   # Defines how long the final song is. Total song length in samples = max_seq_len * example_len
+output = sequence_generator.generate_from_seed(model=model, seed=seed,
+                                               sequence_length=max_seq_len,
+                                               data_variance=X_var,
+                                               data_mean=X_mean)
 print ('Finished generation!')
 
 #Save the generated sequence to a WAV file

@@ -1,5 +1,6 @@
 Keras==0.3.2
 PyYAML==3.11
 Theano==0.7.0
+h5py
 numpy
 scipy
