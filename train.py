@@ -22,9 +22,12 @@ block_size = freq / 4
 # Used later for zero-padding song sequences
 max_seq_len = int(round((freq * clip_len) / block_size))
 
-# TODO: only do this if we don't find the .npy files
 # Convert WAVs to frequency domain with mean 0 and standard deviation of 1
-convert_wav_files_to_nptensor(wav_dir, block_size, max_seq_len, model_file)
+if not os.path.isfile(model_file + "_x.npy"):
+    print("Converting audio to tensor. Blocksize: {}, seq len: {}".format(block_size, max_seq_len))
+    convert_wav_files_to_nptensor(wav_dir, block_size, max_seq_len, model_file)
+else:
+    print("Found tensor files at " + model_file)
 
 cur_iter = 0
 model_basename = config['model_basename']
@@ -50,9 +53,9 @@ model = network_utils.create_lstm_network(num_frequency_dimensions=freq_space_di
 if os.path.isfile(model_filename):
     model.load_weights(model_filename)
 
-num_iters = 50          # Number of iterations for training
-epochs_per_iter = 25    # Number of iterations before we save our model
-batch_size = 64         # Number of training examples pushed to the GPU per batch.
+num_iters = config['num_iters']          # Number of iterations for training
+epochs_per_iter = 10    # Number of iterations before we save our model
+batch_size = config['batch_size']   # Number of training examples pushed to the GPU per batch.
                         # Larger batch sizes require more memory, but training will be faster
 print ('Starting training!')
 while cur_iter < num_iters:

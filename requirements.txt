@@ -1,6 +1,7 @@
 Keras==0.3.2
 PyYAML==3.11
-Theano==0.7.0
+#Theano==0.7.0
+git+https://github.com/Theano/Theano.git#egg=Theano
 h5py
 numpy
 scipy

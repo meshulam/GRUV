@@ -63,7 +63,7 @@ def convert_folder_to_wav(directory, sample_rate=44100):
 
 def read_wav_as_np(filename):
     data = wav.read(filename)
-    np_arr = data[1].astype('float32') / 32767.0 #Normalize 16-bit input to [-1, 1] range
+    np_arr = data[1].astype('float32') / 32767.0    # Normalize 16-bit input to [-1, 1] range
     #np_arr = np.array(np_arr)
     return np_arr, data[0]
 
@@ -116,18 +116,15 @@ def convert_wav_files_to_nptensor(directory, block_size, max_seq_len, out_file, 
             files.append(directory+file)
     chunks_X = []
     chunks_Y = []
-    num_files = len(files)
-    if(num_files > max_files):
-        num_files = max_files
-    for file_idx in xrange(num_files):
-        file = files[file_idx]
-        print 'Processing: ', (file_idx+1),'/',num_files
-        print 'Filename: ', file
-        X, Y = load_training_example(file, block_size, useTimeDomain=useTimeDomain)
+    for (i, f) in enumerate(files):
+        if (i >= max_files):
+            print('Converted max # of files {}, stopping'.format(max_files))
+            break
+        print('Processing file {} of {}: {}'.format(i+1, len(files), f))
+        X, Y = load_training_example(f, block_size, useTimeDomain=useTimeDomain)
         cur_seq = 0
         total_seq = len(X)
-        print total_seq
-        print max_seq_len
+        print('Added {} chunks'.format(total_seq))
         while cur_seq + max_seq_len < total_seq:
             chunks_X.append(X[cur_seq:cur_seq+max_seq_len])
             chunks_Y.append(Y[cur_seq:cur_seq+max_seq_len])
@@ -137,27 +134,27 @@ def convert_wav_files_to_nptensor(directory, block_size, max_seq_len, out_file, 
     if(useTimeDomain):
         num_dims_out = block_size
     out_shape = (num_examples, max_seq_len, num_dims_out)
+    print("Saving {} chunks of length {}, with {} dimensions".format(num_examples, max_seq_len, num_dims_out))
     x_data = np.zeros(out_shape)
     y_data = np.zeros(out_shape)
     for n in xrange(num_examples):
         for i in xrange(max_seq_len):
             x_data[n][i] = chunks_X[n][i]
             y_data[n][i] = chunks_Y[n][i]
-        print 'Saved example ', (n+1), ' / ',num_examples
-    print 'Flushing to disk...'
-    mean_x = np.mean(np.mean(x_data, axis=0), axis=0) #Mean across num examples and num timesteps
-    std_x = np.sqrt(np.mean(np.mean(np.abs(x_data-mean_x)**2, axis=0), axis=0)) # STD across num examples and num timesteps
-    std_x = np.maximum(1.0e-8, std_x) #Clamp variance if too tiny
-    x_data[:][:] -= mean_x #Mean 0
-    x_data[:][:] /= std_x #Variance 1
-    y_data[:][:] -= mean_x #Mean 0
-    y_data[:][:] /= std_x #Variance 1
+    print("Analyzing mean and variance")
+    mean_x = np.mean(np.mean(x_data, axis=0), axis=0)   # Mean across num examples and num timesteps
+    std_x = np.sqrt(np.mean(np.mean(np.abs(x_data-mean_x)**2, axis=0), axis=0))   # STD across num examples and num timesteps
+    std_x = np.maximum(1.0e-8, std_x)   # Clamp variance if too tiny
+    x_data[:][:] -= mean_x      # Mean 0
+    x_data[:][:] /= std_x       # Variance 1
+    y_data[:][:] -= mean_x      # Mean 0
+    y_data[:][:] /= std_x       # Variance 1
 
     np.save(out_file+'_mean', mean_x)
     np.save(out_file+'_var', std_x)
     np.save(out_file+'_x', x_data)
     np.save(out_file+'_y', y_data)
-    print 'Done!'
+    print("Wrote to disk")
 
 def convert_nptensor_to_wav_files(tensor, indices, filename, useTimeDomain=False):
     num_seqs = tensor.shape[1]
@@ -165,13 +162,13 @@ def convert_nptensor_to_wav_files(tensor, indices, filename, useTimeDomain=False
         chunks = []
         for x in xrange(num_seqs):
             chunks.append(tensor[i][x])
-        save_generated_example(filename+str(i)+'.wav', chunks,useTimeDomain=useTimeDomain)
+        save_generated_example(filename+str(i)+'.wav', chunks, useTimeDomain=useTimeDomain)
 
 def load_training_example(filename, block_size=2048, useTimeDomain=False):
     data, bitrate = read_wav_as_np(filename)
     x_t = convert_np_audio_to_sample_blocks(data, block_size)
     y_t = x_t[1:]
-    y_t.append(np.zeros(block_size)) #Add special end block composed of all zeros
+    y_t.append(np.zeros(block_size))  # Add special end block composed of all zeros
     if useTimeDomain:
         return x_t, y_t
     X = time_blocks_to_fft_blocks(x_t)
