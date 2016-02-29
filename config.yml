@@ -1,0 +1,17 @@
+sample_frequency: 22050
+
+hidden_dimension_size: 2048
+
+# Number of training examples pushed to the GPU per batch.
+# Larger batch sizes require more memory, but training will be faster
+batch_size: 128
+iteration_count: 100
+model_output: './audioNPWeights'
+model_input: './datasets/audioNP'
+wav_dir: './datasets/wav/'
+
+env:
+    cuda_root: /usr/local/cuda
+    theano_flags: "cuda.root=/usr/local/cuda,device=gpu,floatX=float32,force_device=True"
+    lib_path: /usr/local/cuda/lib64
+

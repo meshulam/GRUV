@@ -1,20 +1,19 @@
 from __future__ import absolute_import
 from __future__ import print_function
 import numpy as np
+import glob
 import os
 import nn_utils.network_utils as network_utils
 import gen_utils.seed_generator as seed_generator
 import gen_utils.sequence_generator as sequence_generator
 from data_utils.parse_files import *
-import config.nn_config as nn_config
+import utils
 
-config = nn_config.get_neural_net_configuration()
-sample_frequency = config['sampling_frequency']
-inputFile = config['model_file']
-model_basename = config['model_basename']
-cur_iter = 25
-model_filename = model_basename + str(cur_iter)
-output_filename = './generated_song.wav'
+config = utils.get_config()
+sample_frequency = config['sample_frequency']
+inputFile = config['model_input']
+model_out_base = config['model_output']
+
 
 #Load up the training data
 print ('Loading training data')
@@ -37,11 +36,15 @@ model = network_utils.create_lstm_network(num_frequency_dimensions=freq_space_di
 #You could also substitute this with a RNN or GRU
 #model = network_utils.create_gru_network()
 
+model_filename = model_basename + str(cur_iter)
+output_filename = './generated_song.wav'
+
 #Load existing weights if available
-if os.path.isfile(model_filename):
-    model.load_weights(model_filename)
+files = glob.glob(model_out_base + "*")
+if files:
+    model.load_weights(files.pop())
 else:
-    print('Model filename ' + model_filename + ' could not be found!')
+    print('Model weights ' + model_basename + ' could not be found!')
 
 print ('Starting generation!')
 #Here's the interesting part

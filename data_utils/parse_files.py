@@ -2,7 +2,6 @@ import os
 import scipy.io.wavfile as wav
 import numpy as np
 from pipes import quote
-from config import nn_config
 
 def convert_mp3_to_wav(filename, sample_frequency):
     ext = filename[-4:]
