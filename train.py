@@ -11,27 +11,20 @@ config = utils.get_config()
 wav_dir = config['wav_dir']
 model_input = config['model_input']
 
-freq = config['sample_frequency']  # sample frequency in Hz
-
-# length of clips for training. Defined in seconds
-clip_len = 10
-
 # block sizes used for training - this defines the size of our input state
-block_size = freq / 4
-
-# Used later for zero-padding song sequences
-max_seq_len = int(round((freq * clip_len) / block_size))
+block_size = config['block_size']
 
 # Convert WAVs to frequency domain with mean 0 and standard deviation of 1
 if not os.path.isfile(model_input + "_x.npy"):
-    print("Converting audio to tensor. Blocksize: {}, seq len: {}".format(block_size, max_seq_len))
-    convert_wav_files_to_nptensor(wav_dir, block_size, max_seq_len, model_input)
+    print("Converting wavs to model data. blocksize:{} in:{} out:{}".format(block_size, wav_dir, model_input))
+    convert_wav_files_to_nptensor(wav_dir, block_size, model_input)
 else:
     print("Found tensor files at " + model_input)
 
 # Load up the training data
 print ('Loading training data from tensors')
-# x_train and y_train are tensors of size (num_train_examples, num_timesteps, num_frequency_dims)
+# x_train and y_train are tensors of size (num_train_examples, num_samples, num_frequency_dims)
+# num_frequency_dims: blocksize * 2 (real ++ imag)
 x_train = np.load(model_input + '_x.npy')
 y_train = np.load(model_input + '_y.npy')
 print ('Finished loading training data. Dimensions: ' + repr(x_train.shape))
@@ -44,8 +37,6 @@ hidden_dims = config['hidden_dimension_size']
 model = network_utils.create_lstm_network(
     num_frequency_dimensions=freq_space_dims,
     num_hidden_dimensions=hidden_dims)
-
-exit()
 
 #Load existing weights if available
 #if os.path.isfile(model_output):

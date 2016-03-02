@@ -1,5 +1,4 @@
-sample_frequency: 22050
-
+block_size: 4096
 hidden_dimension_size: 2048
 
 # Number of training examples pushed to the GPU per batch.

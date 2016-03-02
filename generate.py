@@ -45,6 +45,7 @@ if files:
     model.load_weights(files.pop())
 else:
     print('Model weights ' + model_basename + ' could not be found!')
+    exit()
 
 print ('Starting generation!')
 #Here's the interesting part

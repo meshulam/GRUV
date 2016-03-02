@@ -1,7 +1,130 @@
 import os
+import math
 import scipy.io.wavfile as wav
 import numpy as np
 from pipes import quote
+from .labelers import by_name
+
+# Importing
+
+def convert_wav_files_to_nptensor(directory, block_size, out_file, label=by_name):
+    files = []
+    for file in os.listdir(directory):
+        if file.endswith('.wav') and not file.startswith('.'):
+            files.append(directory+file)
+
+    blocks_X = []
+    blocks_Y = []
+    for (i, f) in enumerate(files):
+        X = load_training_example(f, block_size)
+        print('Processing {}/{}: {} ({} blocks)'
+              .format(i+1, len(files), f, len(X)))
+        Y = label(X, f)
+        blocks_X.extend(X)
+        blocks_Y.extend(Y)
+
+    x_data = np.array(blocks_X)
+    print("yblocks type: {}, len: {}, first: {}".format(type(blocks_Y), len(blocks_Y), blocks_Y[0]))
+    y_data = np.array(blocks_Y)
+
+    blockshape = x_data.shape[1:] if len(x_data.shape) > 1 else (1)
+    print("X data: {} blocks of size {}, type {}"
+          .format(x_data.shape[0], blockshape, x_data.dtype))
+
+    yblockshape = y_data.shape[1:] if len(y_data.shape) > 1 else (1)
+    print("Y labels: {} blocks of size {}, type {}"
+          .format(y_data.shape[0], yblockshape, y_data.dtype))
+
+    np.save(out_file+'_x', x_data)
+    np.save(out_file+'_y', y_data)
+    print("Wrote to disk")
+
+
+def identity_transformer(block):
+    return block
+
+def rfft_transformer(block):
+    """Takes the real fft of a block and returns a block of the same size
+    where A[0:n/2] are magnitudes and A[n/2:n] are angles of the frequencies.
+    """
+
+    fft_block = np.fft.rfft(block)
+    return np.concatenate((np.abs(fft_block), np.angle(fft_block)))
+
+
+def load_training_example(filename, block_size=2048, transformer=rfft_transformer):
+    data, samplerate = read_wav_as_np(filename)
+    num_samples = data.shape[0]
+    num_blocks = int(math.ceil(float(num_samples) / block_size))    # y u no //?
+    blocks = []
+
+    for i in range(0, num_samples, block_size):
+        block = data[i:i+block_size]
+        if (block.shape[0] < block_size):       # The last block
+            padding = np.zeros((block_size - block.shape[0],))
+            block = np.concatenate((block, padding))
+        transformed_block = transformer(block)
+        blocks.append(transformed_block)
+
+    return blocks
+
+def read_wav_as_np(filename):
+    sample_rate, data = wav.read(filename)
+    if (len(data.shape) > 1):
+        print("{}: multichannel audio, taking first channel only".format(filename))
+        data = data[:, 0]
+    np_arr = data.astype('float32') / 32768.0    # Normalize 16-bit input to [-1, 1] range
+    return np_arr, sample_rate
+
+
+# Exporting
+
+def write_np_as_wav(X, sample_rate, filename):
+    Xnew = X * 32767.0
+    Xnew = Xnew.astype('int16')
+    wav.write(filename, sample_rate, Xnew)
+    return
+
+def convert_nptensor_to_wav_files(tensor, indices, filename, useTimeDomain=False):
+    num_seqs = tensor.shape[1]
+    for i in indices:
+        chunks = []
+        for x in xrange(num_seqs):
+            chunks.append(tensor[i][x])
+        save_generated_example(filename+str(i)+'.wav', chunks, useTimeDomain=useTimeDomain)
+
+def save_generated_example(filename, generated_sequence, useTimeDomain=False, sample_frequency=44100):
+    if useTimeDomain:
+        time_blocks = generated_sequence
+    else:
+        time_blocks = fft_blocks_to_time_blocks(generated_sequence)
+    song = convert_sample_blocks_to_np_audio(time_blocks)
+    write_np_as_wav(song, sample_frequency, filename)
+    return
+
+def convert_sample_blocks_to_np_audio(blocks):
+    song_np = np.concatenate(blocks)
+    return song_np
+
+def fft_blocks_to_time_blocks(blocks_ft_domain):
+    time_blocks = []
+    for block in blocks_ft_domain:
+        num_elems = block.shape[0] / 2
+        real_chunk = block[0:num_elems]
+        imag_chunk = block[num_elems:]
+        new_block = real_chunk + 1.0j * imag_chunk
+        time_block = np.fft.ifft(new_block)
+        time_blocks.append(time_block)
+    return time_blocks
+
+#def audio_unit_test(filename, filename2):
+#    data, bitrate = read_wav_as_np(filename)
+#    time_blocks = convert_np_audio_to_sample_blocks(data, 1024)
+#    ft_blocks = time_blocks_to_fft_blocks(time_blocks)
+#    time_blocks = fft_blocks_to_time_blocks(ft_blocks)
+#    song = convert_sample_blocks_to_np_audio(time_blocks)
+#    write_np_as_wav(song, bitrate, filename2)
+#    return
 
 def convert_mp3_to_wav(filename, sample_frequency):
     ext = filename[-4:]
@@ -50,7 +173,6 @@ def convert_flac_to_wav(filename, sample_frequency):
     os.system(cmd)
     return new_name
 
-
 def convert_folder_to_wav(directory, sample_rate=44100):
     for file in os.listdir(directory):
         fullfilename = directory+file
@@ -60,134 +182,3 @@ def convert_folder_to_wav(directory, sample_rate=44100):
             convert_flac_to_wav(filename=fullfilename, sample_frequency=sample_rate)
     return directory + 'wave/'
 
-def read_wav_as_np(filename):
-    data = wav.read(filename)
-    np_arr = data[1].astype('float32') / 32767.0    # Normalize 16-bit input to [-1, 1] range
-    #np_arr = np.array(np_arr)
-    return np_arr, data[0]
-
-def write_np_as_wav(X, sample_rate, filename):
-    Xnew = X * 32767.0
-    Xnew = Xnew.astype('int16')
-    wav.write(filename, sample_rate, Xnew)
-    return
-
-def convert_np_audio_to_sample_blocks(song_np, block_size):
-    block_lists = []
-    total_samples = song_np.shape[0]
-    num_samples_so_far = 0
-    while(num_samples_so_far < total_samples):
-        block = song_np[num_samples_so_far:num_samples_so_far+block_size]
-        if(block.shape[0] < block_size):
-            padding = np.zeros((block_size - block.shape[0],))
-            block = np.concatenate((block, padding))
-        block_lists.append(block)
-        num_samples_so_far += block_size
-    return block_lists
-
-def convert_sample_blocks_to_np_audio(blocks):
-    song_np = np.concatenate(blocks)
-    return song_np
-
-def time_blocks_to_fft_blocks(blocks_time_domain):
-    fft_blocks = []
-    for block in blocks_time_domain:
-        fft_block = np.fft.fft(block)
-        new_block = np.concatenate((np.real(fft_block), np.imag(fft_block)))
-        fft_blocks.append(new_block)
-    return fft_blocks
-
-def fft_blocks_to_time_blocks(blocks_ft_domain):
-    time_blocks = []
-    for block in blocks_ft_domain:
-        num_elems = block.shape[0] / 2
-        real_chunk = block[0:num_elems]
-        imag_chunk = block[num_elems:]
-        new_block = real_chunk + 1.0j * imag_chunk
-        time_block = np.fft.ifft(new_block)
-        time_blocks.append(time_block)
-    return time_blocks
-
-def convert_wav_files_to_nptensor(directory, block_size, max_seq_len, out_file, max_files=20, useTimeDomain=False):
-    files = []
-    for file in os.listdir(directory):
-        if file.endswith('.wav'):
-            files.append(directory+file)
-    chunks_X = []
-    chunks_Y = []
-    for (i, f) in enumerate(files):
-        if (i >= max_files):
-            print('Converted max # of files {}, stopping'.format(max_files))
-            break
-        print('Processing file {} of {}: {}'.format(i+1, len(files), f))
-        X, Y = load_training_example(f, block_size, useTimeDomain=useTimeDomain)
-        cur_seq = 0
-        total_seq = len(X)
-        print('Added {} chunks'.format(total_seq))
-        while cur_seq + max_seq_len < total_seq:
-            chunks_X.append(X[cur_seq:cur_seq+max_seq_len])
-            chunks_Y.append(Y[cur_seq:cur_seq+max_seq_len])
-            cur_seq += max_seq_len
-    num_examples = len(chunks_X)
-    num_dims_out = block_size * 2
-    if(useTimeDomain):
-        num_dims_out = block_size
-    out_shape = (num_examples, max_seq_len, num_dims_out)
-    print("Saving {} chunks of length {}, with {} dimensions".format(num_examples, max_seq_len, num_dims_out))
-    x_data = np.zeros(out_shape)
-    y_data = np.zeros(out_shape)
-    for n in xrange(num_examples):
-        for i in xrange(max_seq_len):
-            x_data[n][i] = chunks_X[n][i]
-            y_data[n][i] = chunks_Y[n][i]
-    print("Analyzing mean and variance")
-    mean_x = np.mean(np.mean(x_data, axis=0), axis=0)   # Mean across num examples and num timesteps
-    std_x = np.sqrt(np.mean(np.mean(np.abs(x_data-mean_x)**2, axis=0), axis=0))   # STD across num examples and num timesteps
-    std_x = np.maximum(1.0e-8, std_x)   # Clamp variance if too tiny
-    x_data[:][:] -= mean_x      # Mean 0
-    x_data[:][:] /= std_x       # Variance 1
-    y_data[:][:] -= mean_x      # Mean 0
-    y_data[:][:] /= std_x       # Variance 1
-
-    np.save(out_file+'_mean', mean_x)
-    np.save(out_file+'_var', std_x)
-    np.save(out_file+'_x', x_data)
-    np.save(out_file+'_y', y_data)
-    print("Wrote to disk")
-
-def convert_nptensor_to_wav_files(tensor, indices, filename, useTimeDomain=False):
-    num_seqs = tensor.shape[1]
-    for i in indices:
-        chunks = []
-        for x in xrange(num_seqs):
-            chunks.append(tensor[i][x])
-        save_generated_example(filename+str(i)+'.wav', chunks, useTimeDomain=useTimeDomain)
-
-def load_training_example(filename, block_size=2048, useTimeDomain=False):
-    data, bitrate = read_wav_as_np(filename)
-    x_t = convert_np_audio_to_sample_blocks(data, block_size)
-    y_t = x_t[1:]
-    y_t.append(np.zeros(block_size))  # Add special end block composed of all zeros
-    if useTimeDomain:
-        return x_t, y_t
-    X = time_blocks_to_fft_blocks(x_t)
-    Y = time_blocks_to_fft_blocks(y_t)
-    return X, Y
-
-def save_generated_example(filename, generated_sequence, useTimeDomain=False, sample_frequency=44100):
-    if useTimeDomain:
-        time_blocks = generated_sequence
-    else:
-        time_blocks = fft_blocks_to_time_blocks(generated_sequence)
-    song = convert_sample_blocks_to_np_audio(time_blocks)
-    write_np_as_wav(song, sample_frequency, filename)
-    return
-
-def audio_unit_test(filename, filename2):
-    data, bitrate = read_wav_as_np(filename)
-    time_blocks = convert_np_audio_to_sample_blocks(data, 1024)
-    ft_blocks = time_blocks_to_fft_blocks(time_blocks)
-    time_blocks = fft_blocks_to_time_blocks(ft_blocks)
-    song = convert_sample_blocks_to_np_audio(time_blocks)
-    write_np_as_wav(song, bitrate, filename2)
-    return
